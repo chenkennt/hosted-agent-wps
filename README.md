@@ -187,9 +187,17 @@ azd env set WEBPUBSUB_AGENT_USER_ID "hosted-agent"
 
 `client` connects the agent to Web PubSub as a WebSocket client and publishes to a per-stream group. This is the foundation for bidirectional scenarios such as approvals and interrupts.
 
-The handler returns a `WebPubSubStreamingResponse`; `WebPubSubInvocationAgentServerHost` detects it, starts the Web PubSub publishing task, and returns the `202` invocation acknowledgement:
+## Web PubSub Invocation Programming Model
+
+Use `WebPubSubInvocationAgentServerHost` when you want the hosted agent to keep the normal `POST /invocations` entrypoint, return a fast `202` acknowledgement, and stream semantic events through Azure Web PubSub.
+
+The invocation handler returns a `WebPubSubStreamingResponse`; `WebPubSubInvocationAgentServerHost` detects it, starts the Web PubSub publishing task, and returns the acknowledgement to the Hosted Agent platform:
 
 ```python
+from shared.webpubsub_invocation_base import WebPubSubInvocationAgentServerHost, WebPubSubStreamingResponse
+
+app = WebPubSubInvocationAgentServerHost()
+
 @app.invoke_handler
 async def invoke(request):
     body = await request.json()
@@ -199,6 +207,113 @@ async def invoke(request):
         stream_id=body.get("stream_id"),
         conversation_id=body.get("conversation_id"),
     )
+```
+
+There are two supported ways to produce events.
+
+### Yield `StreamEvent` Directly
+
+This is the simplest model. Your async generator yields semantic events, and the host handles Web PubSub delivery and appends the final `done` event.
+
+```python
+from collections.abc import AsyncIterator
+
+from shared.webpubsub_invocation_base import StreamEvent, WebPubSubStreamingResponse
+
+
+async def stream_chat(message: str) -> AsyncIterator[StreamEvent]:
+    yield StreamEvent(type="text.delta", data={"text": "Hello "})
+    yield StreamEvent(type="text.delta", data={"text": message})
+    yield StreamEvent(
+        type="message.final",
+        data={"role": "assistant", "content": f"Hello {message}"},
+    )
+
+
+@app.invoke_handler
+async def invoke(request):
+    body = await request.json()
+    return WebPubSubStreamingResponse(
+        stream_chat(body["message"]),
+        user_id=body["user_id"],
+        stream_id=body.get("stream_id"),
+        conversation_id=body.get("conversation_id"),
+    )
+```
+
+### Use `WebPubSubRunContext`
+
+For richer agents, pass a factory function to `WebPubSubStreamingResponse`. The host calls it with a `WebPubSubRunContext` that contains invocation metadata and helper methods.
+
+```python
+from collections.abc import AsyncIterator
+
+from shared.webpubsub_invocation_base import StreamEvent, WebPubSubRunContext, WebPubSubStreamingResponse
+
+
+async def stream_chat(
+    message: str,
+    context: WebPubSubRunContext,
+) -> AsyncIterator[StreamEvent]:
+    yield context.text_delta("Thinking...\n")
+    yield context.event("tool.event", name="search", query=message)
+    yield context.final_message("Done.")
+
+
+@app.invoke_handler
+async def invoke(request):
+    body = await request.json()
+    return WebPubSubStreamingResponse(
+        lambda context: stream_chat(body["message"], context),
+        user_id=body["user_id"],
+        stream_id=body.get("stream_id"),
+        conversation_id=body.get("conversation_id"),
+    )
+```
+
+The context exposes:
+
+- `context.request_id`, `context.stream_id`, `context.user_id`, `context.conversation_id`
+- `context.text_delta(text)` for token/text chunks
+- `context.final_message(content, role="assistant")` for final assistant output
+- `context.event(event_type, **data)` for custom semantic events
+- `await context.publish_event(event)` to publish an event immediately instead of waiting for the generator queue
+- `await context.wait_for_event(event_type, match=..., timeout=...)` to wait for inbound Web PubSub events
+
+`wait_for_event` requires:
+
+```powershell
+WEBPUBSUB_TRANSPORT=client
+```
+
+The `service` transport can publish events but cannot receive browser responses. Use `client` transport for approvals, interrupts, and other bidirectional flows.
+
+### Approval Example
+
+```python
+import uuid
+
+
+async def stream_with_approval(context: WebPubSubRunContext) -> AsyncIterator[StreamEvent]:
+    approval_id = str(uuid.uuid4())
+    approval = context.event(
+        "approval.requested",
+        approval_id=approval_id,
+        intention="Allow the agent to run a shell command",
+    )
+
+    await context.publish_event(approval)
+    inbound = await context.wait_for_event(
+        "approval.resolved",
+        match={"approval_id": approval_id},
+        timeout=600,
+    )
+
+    decision = (inbound.get("data") or {}).get("decision")
+    if decision == "approved":
+        yield context.event("tool.event", name="shell", status="approved")
+    else:
+        yield context.event("tool.event", name="shell", status="denied")
 ```
 
 ## Compare With Plain Invocation Streaming
