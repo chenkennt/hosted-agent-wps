@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/AgentSchema/refs/heads/main/schemas/v1.0/ContainerAgent.yaml
+
+kind: hosted
+name: github-copilot-agent
+description: |
+    Hosted invocations agent that runs GitHub Copilot SDK and uses Azure Web PubSub client transport for bidirectional events and approvals.
+metadata:
+    tags:
+        - AI Agent Hosting
+        - Invocations Protocol
+        - GitHub Copilot SDK
+        - Azure Web PubSub
+        - Python
+protocols:
+    - protocol: invocations
+      version: 1.0.0
+resources:
+    cpu: "2"
+    memory: 4Gi
+environment_variables:
+    - name: WEBPUBSUB_CONNECTION_STRING
+      value: ${WEBPUBSUB_CONNECTION_STRING}
+    - name: WEBPUBSUB_HUB
+      value: ${WEBPUBSUB_HUB}
+    - name: WEBPUBSUB_TRANSPORT
+      value: client
+    - name: WEBPUBSUB_AGENT_USER_ID
+      value: github-copilot-agent
+    - name: COPILOT_MODEL
+      value: ${COPILOT_MODEL}
+    - name: COPILOT_GITHUB_TOKEN
+      value: ${COPILOT_GITHUB_TOKEN}
+    - name: COPILOT_WORKDIR
+      value: ${COPILOT_WORKDIR}
+    - name: COPILOT_HOME
+      value: ${COPILOT_HOME}
+    - name: COPILOT_AVAILABLE_TOOLS
+      value: ${COPILOT_AVAILABLE_TOOLS}
+    - name: COPILOT_EXCLUDED_TOOLS
+      value: ${COPILOT_EXCLUDED_TOOLS}
+    - name: COPILOT_APPROVAL_TIMEOUT_SECONDS
+      value: ${COPILOT_APPROVAL_TIMEOUT_SECONDS}
+    - name: COPILOT_AGENT_DEBUG_LOGS
+      value: ${COPILOT_AGENT_DEBUG_LOGS}

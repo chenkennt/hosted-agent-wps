@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/AgentSchema/refs/heads/main/schemas/v1.0/ContainerAgent.yaml
+
+kind: hosted
+name: webpubsub-chat-agent
+description: |
+    Hosted invocations agent that streams Azure OpenAI chat responses through Azure Web PubSub.
+metadata:
+    tags:
+        - AI Agent Hosting
+        - Invocations Protocol
+        - Bring Your Own
+        - Azure Web PubSub
+        - Python
+protocols:
+    - protocol: invocations
+      version: 1.0.0
+resources:
+    cpu: "1"
+    memory: 2Gi
+environment_variables:
+    - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+      value: gpt-4.1-mini
+    - name: WEBPUBSUB_CONNECTION_STRING
+      value: ${WEBPUBSUB_CONNECTION_STRING}
+    - name: WEBPUBSUB_HUB
+      value: ${WEBPUBSUB_HUB}
+    - name: CHAT_HISTORY_MAX_MESSAGES
+      value: ${CHAT_HISTORY_MAX_MESSAGES}

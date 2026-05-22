@@ -1,0 +1,1 @@
+"""Plain SSE invocation agent."""

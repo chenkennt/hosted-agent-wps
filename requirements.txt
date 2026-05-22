@@ -1,0 +1,12 @@
+azure-ai-agentserver-invocations
+azure-messaging-webpubsubservice
+azure-messaging-webpubsubclient
+starlette
+python-dotenv
+requests
+openai
+azure-identity
+azure-ai-projects
+hypercorn
+aiohttp
+github-copilot-sdk
