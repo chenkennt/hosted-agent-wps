@@ -2,6 +2,16 @@
 
 This prototype keeps the Hosted Agent `invocations` programming model while moving token streaming to Azure Web PubSub.
 
+The main value of this approach is that it turns a Hosted Agent invocation from a mostly request/response interaction into a channel that can support bidirectional coordination. The client still starts work through the normal `POST /invocations` API, but the running agent can continue communicating with the browser over Web PubSub and, when needed, receive messages back from the browser.
+
+That bidirectional path is important for long-running agentic workflows. A coding agent may need to inspect files, run commands, call tools, pause for human approval, continue after approval, or stop after rejection. With the default invocation streaming model, server-to-client streaming is possible, but client-to-agent interaction during the same turn is awkward because the invocation response is primarily an output stream. Web PubSub gives the agent and browser a shared real-time channel for control events such as approval requests, interrupts, progress updates, and tool results.
+
+The Copilot agent in this repo demonstrates that pattern: the initial user message enters through the Hosted Agent invocation API, Copilot tool/message events are sent to the browser over Web PubSub, and approval decisions are sent back to the running agent over the same per-stream Web PubSub group.
+
+The prototype also adds a friendly Python programming model that stays close to the existing invocation handler experience. Agent developers still implement an `@app.invoke_handler` and return a response object, but the response can carry an async stream of semantic events that the host publishes through Web PubSub. See [Web PubSub Invocation Programming Model](#web-pubsub-invocation-programming-model) for the concrete patterns.
+
+![Demo of the Copilot hosted agent using Web PubSub for streaming events and approval responses](./demo.gif)
+
 The client flow is:
 
 1. Client connects to Azure Web PubSub with a generated client access URL.
